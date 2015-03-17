@@ -1,0 +1,7 @@
+uSignalR/Temp/
+uSignalR/Library/
+uSignalR/*.csproj
+uSignalR/*.DotSettings
+uSignalR/*.sln
+*.suo
+uSignalR/obj/
