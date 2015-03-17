@@ -1,2 +1,4 @@
 # uSignalR
 SignalR which works in Unity3D
+
+Origin of this repo is [here](https://github.com/jenyayel/SignalR.Client.20). Event signals are substituted with [uTasks](https://github.com/gromchen/uTasks). Code was changed as close as possible to version 1.2.2 of [official SignalR repo](https://github.com/SignalR/SignalR). Current version works with PC, iOS and Android for sure. It does not work with web player since web sockets are not implemented here yet. [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) is here only for reference. Version 6.0.8 is used which was changed to remove compilation error because of framework version. To make it work on other platforms you have to use [JSON .NET For Unity](https://www.assetstore.unity3d.com/en/#!/content/11347).
