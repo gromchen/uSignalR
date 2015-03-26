@@ -30,13 +30,17 @@ namespace uTasks
         {
             var task = new Task(() => action(this));
 
-            if (IsCompleted)
+            switch (Status)
             {
-                task.Start();
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndStart(task));
+                case TaskStatus.RanToCompletion:
+                    task.Start();
+                    break;
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    return this;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndStart(task));
+                    break;
             }
 
             return task;
@@ -46,13 +50,16 @@ namespace uTasks
         {
             var task = new Task<TNewResult>(() => function(this));
 
-            if (IsCompleted)
+            switch (Status)
             {
-                task.Start();
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndStart(task));
+                case TaskStatus.RanToCompletion:
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    task.Start();
+                    break;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndStart(task));
+                    break;
             }
 
             return task;
@@ -101,13 +108,16 @@ namespace uTasks
                 return newTask;
             });
 
-            if (IsCompleted)
+            switch (Status)
             {
-                launchTask.Start();
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndStart(launchTask));
+                case TaskStatus.RanToCompletion:
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    launchTask.Start();
+                    break;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndStart(launchTask));
+                    break;
             }
 
             return tcs.Task;
@@ -117,13 +127,17 @@ namespace uTasks
         {
             var newTask = new Task(() => { function(Result); });
 
-            if (IsCompleted)
+            switch (Status)
             {
-                newTask.Start();
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndStart(newTask));
+                case TaskStatus.RanToCompletion:
+                    newTask.Start();
+                    break;
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    return this;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndStart(newTask));
+                    break;
             }
 
             return newTask;
@@ -133,13 +147,16 @@ namespace uTasks
         {
             var newTask = new Task<TNewResult>(() => function(Result));
 
-            if (IsCompleted)
+            switch (Status)
             {
-                newTask.Start();
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndStart(newTask));
+                case TaskStatus.RanToCompletion:
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    newTask.Start();
+                    break;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndStart(newTask));
+                    break;
             }
 
             return newTask;
@@ -147,13 +164,16 @@ namespace uTasks
 
         public void CompleteWithAction(Action<Task<TResult>> action)
         {
-            if (IsCompleted)
+            switch (Status)
             {
-                action(this);
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndExecute(action));
+                case TaskStatus.RanToCompletion:
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    action(this);
+                    break;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndExecute(action));
+                    break;
             }
         }
 
@@ -170,6 +190,11 @@ namespace uTasks
                 Result = _function.EndInvoke(asyncResult);
                 Status = TaskStatus.RanToCompletion;
             }
+            catch (OperationCanceledException exception)
+            {
+                AddException(exception);
+                Status = TaskStatus.Canceled;
+            }
             catch (Exception exception)
             {
                 AddException(exception);
@@ -181,7 +206,7 @@ namespace uTasks
 
         private IEnumerator WaitForCompletionAndExecute(Action<Task<TResult>> action)
         {
-            while (IsCompleted == false)
+            while (IsCompleted == false && IsFaulted == false && IsCanceled == false)
             {
                 yield return null;
             }

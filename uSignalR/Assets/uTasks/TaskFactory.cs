@@ -12,6 +12,13 @@ namespace uTasks
             return task;
         }
 
+        public static Task StartNew(Action action, CancellationToken token)
+        {
+            var task = new Task(action, token);
+            task.Start();
+            return task;
+        }
+
         public static Task<TResult> StartNew<TResult>(Func<TResult> function)
         {
             var task = new Task<TResult>(function);

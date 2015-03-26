@@ -6,7 +6,7 @@ namespace uTasks
     public class Task
     {
         private readonly Action _action;
-        private CancellationToken _cancellationToken;
+        private CancellationToken _token;
 
         protected Task()
         {
@@ -18,7 +18,12 @@ namespace uTasks
             _action = action;
         }
 
-        public AggregateException Exception { get; private set; }
+        public Task(Action action, CancellationToken token) : this(action)
+        {
+            _token = token;
+        }
+
+        public AggregateException AggregateException { get; private set; }
 
         public bool IsCompleted
         {
@@ -40,14 +45,16 @@ namespace uTasks
         protected void RecordInternalCancellationRequest(CancellationToken tokenToRecord,
             Exception cancellationException)
         {
-            _cancellationToken = tokenToRecord;
+            _token = tokenToRecord;
             AddException(cancellationException);
         }
 
         public virtual void Start()
         {
             Status = TaskStatus.Running;
-            _action.BeginInvoke(ActionCallback, null);
+
+            // todo: specification of token does nothing right now
+            _action.BeginInvoke(ActionCallback, _token);
         }
 
         private void ActionCallback(IAsyncResult asyncResult)
@@ -56,6 +63,11 @@ namespace uTasks
             {
                 _action.EndInvoke(asyncResult);
                 Status = TaskStatus.RanToCompletion;
+            }
+            catch (OperationCanceledException exception)
+            {
+                AddException(exception);
+                Status = TaskStatus.Canceled;
             }
             catch (Exception exception)
             {
@@ -66,12 +78,10 @@ namespace uTasks
 
         internal void AddException(Exception exception)
         {
-            if (Exception == null)
-            {
-                Exception = new AggregateException();
-            }
+            if (AggregateException == null)
+                AggregateException = new AggregateException();
 
-            Exception.AddInnerException(exception);
+            AggregateException.AddInnerException(exception);
         }
 
         internal void Finish(TaskStatus status = TaskStatus.RanToCompletion)
@@ -121,13 +131,16 @@ namespace uTasks
 
         public void CompleteWithAction(Action<Task> action)
         {
-            if (IsCompleted)
+            switch (Status)
             {
-                action(this);
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndExecute(action));
+                case TaskStatus.RanToCompletion:
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    action(this);
+                    break;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndExecute(action));
+                    break;
             }
         }
 
@@ -142,13 +155,16 @@ namespace uTasks
                 return newTask;
             });
 
-            if (IsCompleted)
+            switch (Status)
             {
-                launchTask.Start();
-            }
-            else
-            {
-                MainThread.Current.BeginStart(WaitForCompletionAndStart(launchTask));
+                case TaskStatus.RanToCompletion:
+                case TaskStatus.Canceled:
+                case TaskStatus.Faulted:
+                    launchTask.Start();
+                    break;
+                default:
+                    MainThread.Current.BeginStart(WaitForCompletionAndStart(launchTask));
+                    break;
             }
 
             return tcs.Task;
@@ -158,7 +174,7 @@ namespace uTasks
 
         private IEnumerator WaitForCompletionAndExecute(Action<Task> action)
         {
-            while (IsCompleted == false)
+            while (IsCompleted == false && IsFaulted == false && IsCanceled == false)
             {
                 yield return null;
             }
@@ -168,7 +184,7 @@ namespace uTasks
 
         protected IEnumerator WaitForCompletionAndStart(Task task)
         {
-            while (IsCompleted == false)
+            while (IsCompleted == false && IsFaulted == false && IsCanceled == false)
             {
                 yield return null;
             }

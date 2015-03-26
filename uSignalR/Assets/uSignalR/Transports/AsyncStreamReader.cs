@@ -53,9 +53,9 @@ namespace uSignalR.Transports
 
             _stream.ReadAsync(buffer).ContinueWithTask(task =>
             {
-                if (task.Exception != null)
+                if (task.AggregateException != null)
                 {
-                    var exception = task.Exception.GetBaseException();
+                    var exception = task.AggregateException.GetBaseException();
 
                     if (!HttpBasedTransport.IsRequestAborted(exception))
                     {
