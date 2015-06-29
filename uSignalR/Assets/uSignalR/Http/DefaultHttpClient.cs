@@ -31,7 +31,7 @@ namespace uSignalR.Http
                 var req = new HttpWebRequestWrapper(request);
                 prepareRequest(req);
                 PrepareClientRequest(req);
-            }).ThenWithTaskResult(response => (IResponse) new HttpWebResponseWrapper(response));
+            }).Then(response => (IResponse) new HttpWebResponseWrapper(response));
         }
 
         public Task<IResponse> Post(string url, Action<IRequest> prepareRequest, IDictionary<string, string> postData,
@@ -45,7 +45,7 @@ namespace uSignalR.Http
                 prepareRequest(req);
                 PrepareClientRequest(req);
             }, postData)
-                .ThenWithTaskResult(response => (IResponse) new HttpWebResponseWrapper(response));
+                .Then(response => (IResponse) new HttpWebResponseWrapper(response));
         }
 
         private void PrepareClientRequest(HttpWebRequestWrapper req)

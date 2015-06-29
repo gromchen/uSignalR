@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 
 namespace uTasks
@@ -8,210 +7,130 @@ namespace uTasks
     {
         private readonly Func<TResult> _function;
 
+        public Task()
+        {
+        }
+
         public Task(Func<TResult> function)
         {
             _function = function;
         }
 
-        public Task()
-        {
-        }
-
         public TResult Result { get; private set; }
 
-        internal bool TrySetCanceled(CancellationToken tokenToRecord, Exception cancellationException = null)
+        protected override void Process()
         {
-            Finish(TaskStatus.Canceled);
-            RecordInternalCancellationRequest(tokenToRecord, cancellationException);
-            return true;
+            Result = _function();
         }
 
-        public Task ContinueWithTask(Action<Task<TResult>> action)
-        {
-            var task = new Task(() => action(this));
+        #region ContinueWith
 
-            switch (Status)
+        public Task ContinueWith(Action<Task<TResult>> action)
+        {
+            return ContinueWith(new Task(() => action(this)));
+        }
+
+        /// <remarks>
+        ///     Function has to be called <see cref="ContinueWithNewResult{TNewResult}" /> since otherwise Unity compiler can't
+        ///     distinguish <see cref="Task.ContinueWith" /> functions.
+        /// </remarks>
+        public Task<TNewResult> ContinueWithNewResult<TNewResult>(Func<Task<TResult>, TNewResult> function)
+        {
+            return ContinueWithNewResult(new Task<TNewResult>(() => function(this)));
+        }
+
+        private Task<TNewResult> ContinueWithNewResult<TNewResult>(Task<TNewResult> task)
+        {
+            lock (ContinuationLock)
             {
-                case TaskStatus.RanToCompletion:
-                    task.Start();
-                    break;
-                case TaskStatus.Canceled:
-                case TaskStatus.Faulted:
-                    return this;
-                default:
-                    MainThread.Current.BeginStart(WaitForCompletionAndStart(task));
-                    break;
+                switch (Status)
+                {
+                    case TaskStatus.Faulted:
+                    case TaskStatus.Canceled:
+                    case TaskStatus.RanToCompletion:
+                        task.Start();
+                        return task;
+                    default:
+                        Continuations.Add(task);
+                        return task;
+                }
             }
-
-            return task;
         }
 
-        public Task<TNewResult> ContinueWithTaskResult<TNewResult>(Func<Task<TResult>, TNewResult> function)
-        {
-            var task = new Task<TNewResult>(() => function(this));
+        #endregion
 
-            switch (Status)
-            {
-                case TaskStatus.RanToCompletion:
-                case TaskStatus.Canceled:
-                case TaskStatus.Faulted:
-                    task.Start();
-                    break;
-                default:
-                    MainThread.Current.BeginStart(WaitForCompletionAndStart(task));
-                    break;
-            }
-
-            return task;
-        }
+        #region Try
 
         internal bool TrySetResult(TResult result)
         {
-            if (IsCompleted)
-            {
-                return false;
-            }
+            if (IsCompleted) return false;
 
             Result = result;
+            Finish(TaskStatus.RanToCompletion);
+            return true;
+        }
 
-            Finish();
+        internal bool TrySetCanceled(CancellationToken tokenToRecord, Exception cancellationException = null)
+        {
+            if (IsCompleted) return false;
+
+            RecordInternalCancellationRequest(tokenToRecord, cancellationException);
+            Finish(TaskStatus.Canceled);
             return true;
         }
 
         public bool TrySetException(Exception exception)
         {
+            if (IsCompleted) return false;
+
             AddException(exception);
-            Finish();
+            Finish(TaskStatus.Faulted);
             return true;
         }
 
-        public bool TrySetException(IEnumerable<Exception> exceptions)
+        public bool TrySetExceptions(IEnumerable<Exception> exceptions)
         {
+            if (IsCompleted) return false;
+
             foreach (var exception in exceptions)
             {
                 AddException(exception);
             }
 
-            Finish();
+            Finish(TaskStatus.Faulted);
             return true;
         }
 
-        public Task<TNewResult> ThenWithTaskResultAndWaitForInnerResult<TNewResult>(
-            Func<TResult, Task<TNewResult>> function)
-        {
-            var tcs = new TaskCompletionSource<TNewResult>();
+        #endregion
 
-            var launchTask = new Task<Task<TNewResult>>(() =>
-            {
-                var newTask = function(Result);
-                newTask.CompleteWithAction(t => tcs.SetResult(t.Result));
-                return newTask;
-            });
+        #region Then
+
+        public Task Then(Func<TResult, Task> function)
+        {
+            return ContinueWith(new Task(() => function(Result)));
+        }
+
+        public Task<TNewResult> Then<TNewResult>(Func<TResult, Task<TNewResult>> function)
+        {
+            var source = new TaskCompletionSource<TNewResult>();
+            Action launch = () => { function(Result).ContinueWith(t => source.SetResult(t.Result)); };
 
             switch (Status)
             {
-                case TaskStatus.RanToCompletion:
                 case TaskStatus.Canceled:
                 case TaskStatus.Faulted:
-                    launchTask.Start();
-                    break;
-                default:
-                    MainThread.Current.BeginStart(WaitForCompletionAndStart(launchTask));
-                    break;
-            }
-
-            return tcs.Task;
-        }
-
-        public Task ThenWithTaskAndWaitForInnerTask(Func<TResult, Task> function)
-        {
-            var newTask = new Task(() => { function(Result); });
-
-            switch (Status)
-            {
                 case TaskStatus.RanToCompletion:
-                    newTask.Start();
-                    break;
-                case TaskStatus.Canceled:
-                case TaskStatus.Faulted:
-                    return this;
+                    launch();
+                    return source.Task;
                 default:
-                    MainThread.Current.BeginStart(WaitForCompletionAndStart(newTask));
-                    break;
-            }
-
-            return newTask;
-        }
-
-        public Task<TNewResult> ThenWithTaskResult<TNewResult>(Func<TResult, TNewResult> function)
-        {
-            var newTask = new Task<TNewResult>(() => function(Result));
-
-            switch (Status)
-            {
-                case TaskStatus.RanToCompletion:
-                case TaskStatus.Canceled:
-                case TaskStatus.Faulted:
-                    newTask.Start();
-                    break;
-                default:
-                    MainThread.Current.BeginStart(WaitForCompletionAndStart(newTask));
-                    break;
-            }
-
-            return newTask;
-        }
-
-        public void CompleteWithAction(Action<Task<TResult>> action)
-        {
-            switch (Status)
-            {
-                case TaskStatus.RanToCompletion:
-                case TaskStatus.Canceled:
-                case TaskStatus.Faulted:
-                    action(this);
-                    break;
-                default:
-                    MainThread.Current.BeginStart(WaitForCompletionAndExecute(action));
-                    break;
+                    base.ContinueWith(t => launch());
+                    return source.Task;
             }
         }
 
-        public override void Start()
+        public Task<TNewResult> Then<TNewResult>(Func<TResult, TNewResult> function)
         {
-            Status = TaskStatus.Running;
-            _function.BeginInvoke(FunctionCallback, null);
-        }
-
-        private void FunctionCallback(IAsyncResult asyncResult)
-        {
-            try
-            {
-                Result = _function.EndInvoke(asyncResult);
-                Status = TaskStatus.RanToCompletion;
-            }
-            catch (OperationCanceledException exception)
-            {
-                AddException(exception);
-                Status = TaskStatus.Canceled;
-            }
-            catch (Exception exception)
-            {
-                AddException(exception);
-                Status = TaskStatus.Faulted;
-            }
-        }
-
-        #region Enumerations
-
-        private IEnumerator WaitForCompletionAndExecute(Action<Task<TResult>> action)
-        {
-            while (IsCompleted == false && IsFaulted == false && IsCanceled == false)
-            {
-                yield return null;
-            }
-
-            action(this);
+            return ContinueWithNewResult(new Task<TNewResult>(() => function(Result)));
         }
 
         #endregion

@@ -37,7 +37,7 @@ namespace uSignalR.Transports
 
             if (reader == null)
                 return;
-            
+
             // Stop reading data from the stream
             reader.StopReading(false);
 
@@ -72,49 +72,50 @@ namespace uSignalR.Transports
             {
                 connection.PrepareRequest(request);
                 request.Accept = "text/event-stream";
-            }, true).ContinueWithTask(task =>
-            {
-                var response = task.Result;
-
-                if (response.Exception != null)
+            }, true)
+                .ContinueWith(task =>
                 {
-                    var exception = response.Exception.GetBaseException();
+                    var response = task.Result;
 
-                    if (!IsRequestAborted(exception))
+                    if (response.Exception != null)
                     {
+                        var exception = response.Exception.GetBaseException();
+
+                        if (!IsRequestAborted(exception))
+                        {
+                            if (reconnecting)
+                            {
+                                // Only raise the error event if we failed to reconnect
+                                connection.OnError(exception);
+                            }
+                        }
+
                         if (reconnecting)
                         {
-                            // Only raise the error event if we failed to reconnect
-                            connection.OnError(exception);
+                            // Retry
+                            Reconnect(connection, data);
                         }
                     }
-
-                    if (reconnecting)
+                    else
                     {
-                        // Retry
-                        Reconnect(connection, data);
+                        // Get the response stream and read it for messages
+                        var stream = response.GetResponseStream();
+                        var reader = new AsyncStreamReader(stream, connection, () =>
+                        {
+                            response.Close();
+                            Reconnect(connection, data);
+                        });
+
+                        if (reconnecting)
+                            // Raise the reconnect event if the connection comes back up
+                            connection.OnReconnected();
+
+                        reader.StartReading();
+
+                        // Set the reader for this connection
+                        connection.Items[ReaderKey] = reader;
                     }
-                }
-                else
-                {
-                    // Get the response stream and read it for messages
-                    var stream = response.GetResponseStream();
-                    var reader = new AsyncStreamReader(stream, connection, () =>
-                    {
-                        response.Close();
-                        Reconnect(connection, data);
-                    });
-
-                    if (reconnecting)
-                        // Raise the reconnect event if the connection comes back up
-                        connection.OnReconnected();
-
-                    reader.StartReading();
-
-                    // Set the reader for this connection
-                    connection.Items[ReaderKey] = reader;
-                }
-            });
+                });
         }
     }
 }

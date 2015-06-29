@@ -1,28 +1,21 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 
 namespace uTasks
 {
     public class TaskCompletionSource<TResult>
     {
-        public Task<TResult> Task { get; private set; }
-
         public TaskCompletionSource()
         {
             Task = new Task<TResult>();
         }
 
+        public Task<TResult> Task { get; private set; }
+
         public bool TrySetResult(TResult result)
         {
-            var flag = Task.TrySetResult(result);
-
-            if (flag == false && Task.IsCompleted == false)
-            {
-                MainThread.Current.BeginStart(WaitForCompletion());
-            }
-
-            return flag;
+            return Task.TrySetResult(result);
         }
 
         public bool TrySetCanceled()
@@ -32,22 +25,7 @@ namespace uTasks
 
         internal bool TrySetCanceled(CancellationToken tokenToRecord)
         {
-            bool flag = Task.TrySetCanceled(tokenToRecord);
-
-            if (flag == false && Task.IsCompleted == false)
-            {
-                MainThread.Current.BeginStart(WaitForCompletion());
-            }
-
-            return flag;
-        }
-
-        private IEnumerator WaitForCompletion()
-        {
-            while (Task.IsCompleted == false)
-            {
-                yield return null;
-            }
+            return Task.TrySetCanceled(tokenToRecord);
         }
 
         public void SetResult(TResult result)
@@ -70,32 +48,26 @@ namespace uTasks
             }
         }
 
-        public void SetException(IEnumerable<Exception> exceptions)
+        public void SetExceptions(IEnumerable<Exception> exceptions)
         {
-            if (!TrySetException(exceptions))
+            var flag = TrySetException(exceptions);
+
+            if (flag == false)
                 throw new InvalidOperationException("Task is already completed.");
         }
 
         public bool TrySetException(Exception exception)
         {
-            var flag = Task.TrySetException(exception);
-
-            if (flag == false && Task.IsCompleted == false)
-            {
-                MainThread.Current.BeginStart(WaitForCompletion());
-            }
-
-            return flag;
+            return Task.TrySetException(exception);
         }
 
-        public bool TrySetException(IEnumerable<Exception> exceptions)
+        public bool TrySetException([NotNull] IEnumerable<Exception> exceptions)
         {
-            if (exceptions == null)
-                throw new ArgumentNullException("exceptions");
-            
-            List<Exception> list = new List<Exception>();
-            
-            foreach (Exception exception in exceptions)
+            if (exceptions == null) throw new ArgumentNullException("exceptions");
+
+            var list = new List<Exception>();
+
+            foreach (var exception in exceptions)
             {
                 if (exception == null)
                     throw new ArgumentException("Exception is null.", "exceptions");
@@ -105,15 +77,30 @@ namespace uTasks
 
             if (list.Count == 0)
                 throw new ArgumentException("There is no exceptions.", "exceptions");
-            
-            bool flag = Task.TrySetException(list);
 
-            if (flag == false && Task.IsCompleted == false)
+            return Task.TrySetExceptions(list);
+        }
+
+        public void SetUnwrappedException(Exception exception)
+        {
+            var aggregateException = exception as AggregateException;
+
+            if (aggregateException != null)
             {
-                MainThread.Current.BeginStart(WaitForCompletion());
+                SetExceptions(aggregateException.InnerExceptions);
             }
+            else
+            {
+                SetException(exception);
+            }
+        }
 
-            return flag;
+        public void SetCanceled()
+        {
+            var flag = TrySetCanceled();
+
+            if (flag == false)
+                throw new InvalidOperationException("Task is already completed.");
         }
     }
 }

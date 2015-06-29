@@ -59,10 +59,10 @@ namespace uSignalR.Transports
             var postData = new Dictionary<string, string> {{"data", data}};
 
             return HttpClient.Post(url, connection.PrepareRequest, postData, false)
-                .ThenWithTaskResultAndWaitForInnerResult(response => response.ReadAsString())
-                .ThenWithTaskResult(raw =>
+                .Then(response => response.ReadAsString())
+                .Then(raw =>
                 {
-                    if (!String.IsNullOrEmpty(raw))
+                    if (!string.IsNullOrEmpty(raw))
                     {
                         return JsonConvert.DeserializeObject<HubResult>(raw);
                     }
@@ -98,8 +98,8 @@ namespace uSignalR.Transports
             httpClient.Initialize(connection);
 
             return httpClient.Get(connection.Url + "negotiate", connection.PrepareRequest, false)
-                .ThenWithTaskResultAndWaitForInnerResult(response => response.ReadAsString())
-                .ThenWithTaskResult(json =>
+                .Then(response => response.ReadAsString())
+                .Then(json =>
                 {
                     if (json == null)
                         throw new InvalidOperationException("Server negotiation failed.");

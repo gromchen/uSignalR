@@ -9,7 +9,7 @@ namespace uSignalR.Http
     {
         public static Task<string> ReadAsString(this HttpWebResponse response)
         {
-            return TaskFactory.StartNew(() =>
+            return Task.Run(() =>
             {
                 using (var stream = response.GetResponseStream())
                 {

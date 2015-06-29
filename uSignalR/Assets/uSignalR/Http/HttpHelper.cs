@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Net;
+using System.Text;
 using uSignalR.Infrastructure;
 using uTasks;
 
@@ -12,27 +12,12 @@ namespace uSignalR.Http
     {
         public static Task<HttpWebResponse> GetHttpResponseAsync(this HttpWebRequest request)
         {
-            try
-            {
-                return TaskFactory.FromAsync(request.BeginGetResponse,
-                    asyncResult => (HttpWebResponse) request.EndGetResponse(asyncResult));
-            }
-            catch (Exception ex)
-            {
-                return TaskFactory.FromError<HttpWebResponse>(ex);
-            }
+            return Task.Run(() => (HttpWebResponse) request.GetResponse());
         }
 
         public static Task<Stream> GetHttpRequestStreamAsync(this HttpWebRequest request)
         {
-            try
-            {
-                return TaskFactory.FromAsync<Stream>(request.BeginGetRequestStream, request.EndGetRequestStream);
-            }
-            catch (Exception ex)
-            {
-                return TaskFactory.FromError<Stream>(ex);
-            }
+            return Task.Run(() => request.GetRequestStream());
         }
 
         public static Task<HttpWebResponse> GetAsync(string url, Action<HttpWebRequest> requestPreparer)
@@ -69,16 +54,9 @@ namespace uSignalR.Http
             }
 
             // Write the post data to the request stream
-            /*return request.GetHttpRequestStreamAsync()
-                .Then(stream => stream.WriteAsync(buffer).Then(stream.Dispose))
-                .Then(() => request.GetHttpResponseAsync());*/
-
             return request.GetHttpRequestStreamAsync()
-                .ThenWithTaskAndWaitForInnerTask(stream =>
-                {
-                    return stream.WriteAsync(buffer).ThenWithTask(() => stream.Dispose());
-                })
-                .ThenWithTaskResultAndWaitForInnerResult(() => request.GetHttpResponseAsync());
+                .Then(stream => stream.WriteAsync(buffer).Then(() => stream.Dispose()))
+                .Then(() => request.GetHttpResponseAsync());
         }
 
         private static byte[] ProcessPostData(IDictionary<string, string> postData)
@@ -92,7 +70,7 @@ namespace uSignalR.Http
                 if (stringB.Length > 0)
                     stringB.Append("&");
 
-                if (String.IsNullOrEmpty(pair.Value))
+                if (string.IsNullOrEmpty(pair.Value))
                     continue;
                 stringB.AppendFormat("{0}={1}", pair.Key, UriQueryUtility.UrlEncode(pair.Value));
             }

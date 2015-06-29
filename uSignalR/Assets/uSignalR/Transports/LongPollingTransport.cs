@@ -44,11 +44,9 @@ namespace uSignalR.Transports
 
             Debug.WriteLine(string.Format("LP: {0}", url));
 
-            HttpClient.Post(
-                url,
-                connection.PrepareRequest,
-                new Dictionary<string, string> {{"groups", GetSerializedGroups(connection)}}, true).
-                ContinueWithTask(task =>
+            var postData = new Dictionary<string, string> {{"groups", GetSerializedGroups(connection)}};
+            HttpClient.Post(url, connection.PrepareRequest, postData, true)
+                .ContinueWith(task =>
                 {
                     var response = task.Result;
 
@@ -69,13 +67,13 @@ namespace uSignalR.Transports
                             FireReconnected(connection, reconnectTokenSource, ref reconnectFired);
 
                         // Get the response
-                        response.ReadAsString().ContinueWithTask(t =>
+                        response.ReadAsString().ContinueWith(t =>
                         {
                             var raw = t.Result;
 
                             Debug.WriteLine(string.Format("LP Receive: {0}", raw));
 
-                            if (!String.IsNullOrEmpty(raw))
+                            if (!string.IsNullOrEmpty(raw))
                                 ProcessResponse(connection, raw, out shouldRaiseReconnect, out disconnectedReceived);
                         });
                     }
@@ -93,25 +91,25 @@ namespace uSignalR.Transports
                                 // Get the underlying exception
                                 var exception = response.Exception.GetBaseException();
 
-                                
-                                    // Figure out if the request was aborted
-                                    var requestAborted = IsRequestAborted(exception);
 
-                                    // Sometimes a connection might have been closed by the server before we get to write anything
-                                    // so just try again and don't raise OnError.
-                                    if (!requestAborted && !(exception is IOException))
+                                // Figure out if the request was aborted
+                                var requestAborted = IsRequestAborted(exception);
+
+                                // Sometimes a connection might have been closed by the server before we get to write anything
+                                // so just try again and don't raise OnError.
+                                if (!requestAborted && !(exception is IOException))
+                                {
+                                    // Raise on error
+                                    connection.OnError(exception);
+
+                                    // If the connection is still active after raising the error event wait for 2 seconds
+                                    // before polling again so we aren't hammering the server
+                                    Thread.Sleep(ErrorDelay);
+                                    if (connection.IsActive)
                                     {
-                                        // Raise on error
-                                        connection.OnError(exception);
-
-                                        // If the connection is still active after raising the error event wait for 2 seconds
-                                        // before polling again so we aren't hammering the server
-                                        Thread.Sleep(ErrorDelay);
-                                        if (connection.IsActive)
-                                        {
-                                            PollingLoop(connection, data, raiseReconnect: true);
-                                        }
+                                        PollingLoop(connection, data, true);
                                     }
+                                }
                             }
                             else
                             {

@@ -51,11 +51,11 @@ namespace uSignalR.Transports
 
             var buffer = new byte[1024];
 
-            _stream.ReadAsync(buffer).ContinueWithTask(task =>
+            _stream.ReadAsync(buffer).ContinueWith(task =>
             {
-                if (task.AggregateException != null)
+                if (task.Exception != null)
                 {
-                    var exception = task.AggregateException.GetBaseException();
+                    var exception = task.Exception.GetBaseException();
 
                     if (!HttpBasedTransport.IsRequestAborted(exception))
                     {

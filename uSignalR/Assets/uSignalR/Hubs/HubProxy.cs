@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using uTasks;
@@ -69,13 +69,11 @@ namespace uSignalR.Hubs
             };
 
             var value = JsonConvert.SerializeObject(invocation);
-
             var tcs = new TaskCompletionSource<TResult>();
 
-            _connection.Send(value).ContinueWithTask(task =>
+            _connection.Send(value).ContinueWith(task =>
             {
                 var result = task.Result;
-
                 if (result != null)
                 {
                     if (result.Error != null)
@@ -115,7 +113,6 @@ namespace uSignalR.Hubs
 
                 // todo: try set canceled
             });
-
             return tcs.Task;
         }
 

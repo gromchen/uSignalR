@@ -7,12 +7,12 @@ namespace uSignalR.Infrastructure
     {
         public static Task WriteAsync(this Stream stream, byte[] buffer)
         {
-            return TaskFactory.StartNew(() => stream.Write(buffer, 0, buffer.Length));
+            return Task.Run(() => stream.Write(buffer, 0, buffer.Length));
         }
 
         public static Task<int> ReadAsync(this Stream stream, byte[] buffer)
         {
-            return TaskFactory.StartNew(() => stream.Read(buffer, 0, buffer.Length));
+            return Task.Run(() => stream.Read(buffer, 0, buffer.Length));
         }
     }
 }

@@ -3,21 +3,21 @@ using Newtonsoft.Json;
 
 namespace uSignalR.Hubs
 {
-	public class HubInvocation
+    public class HubInvocation
     {
         [JsonProperty("I")]
         public string CallbackId { get; set; }
 
         [JsonProperty("H")]
-		public string Hub { get; set; }
+        public string Hub { get; set; }
 
         [JsonProperty("M")]
-		public string Method { get; set; }
+        public string Method { get; set; }
 
         [JsonProperty("A")]
-		public object[] Args { get; set; }
+        public object[] Args { get; set; }
 
         [JsonProperty("S", NullValueHandling = NullValueHandling.Ignore)]
-		public Dictionary<string, object> State { get; set; }
-	}
+        public Dictionary<string, object> State { get; set; }
+    }
 }

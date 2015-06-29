@@ -5,21 +5,16 @@ namespace uTasks
 {
     public class AggregateException : Exception
     {
-        private readonly List<Exception> _innerExceptions;
-
-        public AggregateException()
+        public AggregateException(params Exception[] exceptions)
         {
-            _innerExceptions = new List<Exception>();
+            InnerExceptions = exceptions;
         }
 
-        public IEnumerable<Exception> InnerExceptions
+        public AggregateException(IEnumerable<Exception> exceptions)
         {
-            get { return _innerExceptions; }
+            InnerExceptions = exceptions;
         }
 
-        public void AddInnerException(Exception exception)
-        {
-            _innerExceptions.Add(exception);
-        }
+        public IEnumerable<Exception> InnerExceptions { get; private set; }
     }
 }

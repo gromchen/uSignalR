@@ -353,7 +353,7 @@ namespace uSignalR
         private Task Negotiate(IClientTransport transport)
         {
             return transport.Negotiate(this)
-                .ContinueWithTaskResult(task =>
+                .ContinueWithNewResult(task =>
                 {
                     var response = task.Result;
 

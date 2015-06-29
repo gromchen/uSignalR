@@ -1,4 +1,4 @@
-﻿namespace uTasks
+namespace uTasks
 {
     public enum TaskStatus
     {
