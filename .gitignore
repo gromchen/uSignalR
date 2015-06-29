@@ -5,3 +5,5 @@ uSignalR/*.DotSettings
 uSignalR/*.sln
 *.suo
 uSignalR/obj/
+uSignalR/Assets/UnityVS/
+uSignalR/Assets/UnityVS.meta
